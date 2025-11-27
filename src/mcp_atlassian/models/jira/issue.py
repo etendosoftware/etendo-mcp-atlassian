@@ -267,7 +267,10 @@ class JiraIssue(ApiModel, TimestampMixin):
         issue_id = str(data.get("id", JIRA_DEFAULT_ID))
         key = str(data.get("key", JIRA_DEFAULT_KEY))
         summary = str(fields.get("summary", EMPTY_STRING))
-        description = fields.get("description")
+        description_raw = fields.get("description")
+        
+        # Convert ADF description to plain text if it's a dict
+        description = cls._convert_adf_to_text(description_raw)
 
         # Timestamps
         created = str(fields.get("created", EMPTY_STRING))
@@ -797,3 +800,63 @@ class JiraIssue(ApiModel, TimestampMixin):
             for link_data in issuelinks_data
             if link_data
         ]
+
+    @staticmethod
+    def _convert_adf_to_text(adf_content: Any) -> str | None:
+        """
+        Convert Atlassian Document Format (ADF) to plain text.
+        
+        Args:
+            adf_content: ADF document structure (dict), string, or None
+            
+        Returns:
+            Plain text representation or None
+        """
+        if not adf_content:
+            return None
+            
+        # If it's already a string, return as-is
+        if isinstance(adf_content, str):
+            return adf_content
+            
+        # If it's not a dict (ADF structure), return None
+        if not isinstance(adf_content, dict):
+            return None
+        
+        # Parse ADF structure
+        content = adf_content.get("content", [])
+        if not content:
+            return ""
+        
+        paragraphs = []
+        for node in content:
+            if node.get("type") == "paragraph":
+                paragraph_text = JiraIssue._extract_text_from_adf_paragraph(node)
+                if paragraph_text:
+                    paragraphs.append(paragraph_text)
+        
+        return "\n\n".join(paragraphs)
+    
+    @staticmethod
+    def _extract_text_from_adf_paragraph(paragraph_node: dict) -> str:
+        """
+        Extract text from a paragraph ADF node.
+        
+        Args:
+            paragraph_node: ADF paragraph node
+            
+        Returns:
+            Plain text from the paragraph
+        """
+        content = paragraph_node.get("content", [])
+        if not content:
+            return ""
+        
+        text_parts = []
+        for node in content:
+            if node.get("type") == "text":
+                text_parts.append(node.get("text", ""))
+            elif node.get("type") == "hardBreak":
+                text_parts.append("\n")
+        
+        return "".join(text_parts)

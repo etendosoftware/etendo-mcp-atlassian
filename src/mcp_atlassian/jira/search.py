@@ -181,17 +181,32 @@ class SearchMixin(JiraClient, IssueOperationsProto):
                 response = response_raw.json()
                 
                 logger.debug(f"Cloud Enhanced JQL search response type: {type(response)}")
+                logger.debug(f"Cloud Enhanced JQL search response keys: {list(response.keys()) if isinstance(response, dict) else 'N/A'}")
                 
                 if not isinstance(response, dict):
                     msg = f"Unexpected return value type from Enhanced JQL search API: {type(response)}"
                     logger.error(msg)
                     raise TypeError(msg)
 
-                # Enhanced JQL API returns nextPageToken instead of startAt/maxResults
-                # Convert to expected format for JiraSearchResult
-                if "nextPageToken" in response and "startAt" not in response:
+                # Enhanced JQL API has a different response format than standard search API
+                # It returns: {values: [...], total: number, nextPageToken?: string}
+                # Standard API returns: {issues: [...], total: number, startAt: number, maxResults: number}
+                
+                # Normalize the Enhanced JQL response to match standard search API format
+                if "values" in response and "issues" not in response:
+                    response["issues"] = response.pop("values")
+                
+                # Add missing pagination fields for Enhanced JQL API
+                if "startAt" not in response:
                     response["startAt"] = 0
+                
+                if "maxResults" not in response:
                     response["maxResults"] = limit
+                
+                # If total is missing but we have issues, use the issues count
+                if "total" not in response and "issues" in response:
+                    response["total"] = len(response["issues"])
+                    logger.debug(f"Set total to issues count: {response['total']}")
 
                 # Convert the response to a search result model
                 search_result = JiraSearchResult.from_api_response(
