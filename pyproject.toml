@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "etendo-mcp-atlassian"
-version = "0.1.9"                    # ⟵ bump (PyPI no permite overwrite)
-requires-python = ">=3.9"
+version = "0.1.10"                   # ⟵ Fixed deprecated Jira API v2 endpoints
+requires-python = ">=3.10"
 description = "MCP server for Atlassian (fork con mejoras)"
 readme = "README.md"
 license = { text = "MIT" }
@@ -44,8 +44,8 @@ confluence = [
 
 [project.scripts]
 # Ejecutable(s) que exponés
-etendo-mcp-atlassian = "mcp_atlassian.server:main"
-mcp-atlassian = "mcp_atlassian.server:main"
+etendo-mcp-atlassian = "mcp_atlassian:main"
+mcp-atlassian = "mcp_atlassian:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp_atlassian"]

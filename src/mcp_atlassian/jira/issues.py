@@ -1577,7 +1577,7 @@ class IssuesMixin(
         # Get paged api results
         paged_api_results = self.get_paged(
             method="post",
-            url=self.jira.resource_url("changelog/bulkfetch"),
+            url="/rest/api/3/changelog/bulkfetch",
             params_or_json={
                 "fieldIds": fields,
                 "issueIdsOrKeys": issue_ids_or_keys,

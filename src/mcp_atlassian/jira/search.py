@@ -154,52 +154,48 @@ class SearchMixin(JiraClient, IssueOperationsProto):
                 fields_param = fields
 
             if self.config.is_cloud:
-                actual_total = -1
-                try:
-                    # Call 1: Get metadata (including total) using standard search API
-                    metadata_params = {"jql": jql, "maxResults": 0}
-                    metadata_response = self.jira.get(
-                        self.jira.resource_url("search"), params=metadata_params
+                # For Cloud, use Enhanced JQL API (POST /rest/api/3/search/jql)
+                url = f"{self.config.url}/rest/api/3/search/jql"
+                
+                # Enhanced JQL uses POST with JSON payload
+                payload = {
+                    "jql": jql,
+                    "maxResults": min(limit, 5000),  # Enhanced API supports up to 5000
+                    "fields": fields_param.split(",") if fields_param else [],
+                }
+                if expand:
+                    payload["expand"] = expand.split(",") if isinstance(expand, str) else expand
+                
+                if start > 0:
+                    logger.warning(
+                        f"Enhanced JQL API doesn't support startAt pagination. "
+                        f"Requested start={start} will be ignored. Use nextPageToken instead."
                     )
-
-                    if (
-                        isinstance(metadata_response, dict)
-                        and "total" in metadata_response
-                    ):
-                        try:
-                            actual_total = int(metadata_response["total"])
-                        except (ValueError, TypeError):
-                            logger.warning(
-                                f"Could not parse 'total' from metadata response for JQL: {jql}. Received: {metadata_response.get('total')}"
-                            )
-                    else:
-                        logger.warning(
-                            f"Could not retrieve total count from metadata response for JQL: {jql}. Response type: {type(metadata_response)}"
-                        )
-                except Exception as meta_err:
-                    logger.error(
-                        f"Error fetching metadata for JQL '{jql}': {str(meta_err)}"
-                    )
-
-                # Call 2: Get the actual issues using the enhanced method
-                issues_response_list = self.jira.enhanced_jql_get_list_of_tickets(
-                    jql, fields=fields_param, limit=limit, expand=expand
-                )
-
-                if not isinstance(issues_response_list, list):
-                    msg = f"Unexpected return value type from `jira.enhanced_jql_get_list_of_tickets`: {type(issues_response_list)}"
+                
+                logger.debug(f"Cloud Enhanced JQL search URL: {url}")
+                logger.debug(f"Cloud Enhanced JQL search payload: {payload}")
+                
+                # Use the underlying session to make POST request
+                response_raw = self.jira._session.post(url, json=payload)
+                response_raw.raise_for_status()
+                response = response_raw.json()
+                
+                logger.debug(f"Cloud Enhanced JQL search response type: {type(response)}")
+                
+                if not isinstance(response, dict):
+                    msg = f"Unexpected return value type from Enhanced JQL search API: {type(response)}"
                     logger.error(msg)
                     raise TypeError(msg)
 
-                response_dict_for_model = {
-                    "issues": issues_response_list,
-                    "total": actual_total,
-                }
+                # Enhanced JQL API returns nextPageToken instead of startAt/maxResults
+                # Convert to expected format for JiraSearchResult
+                if "nextPageToken" in response and "startAt" not in response:
+                    response["startAt"] = 0
+                    response["maxResults"] = limit
 
+                # Convert the response to a search result model
                 search_result = JiraSearchResult.from_api_response(
-                    response_dict_for_model,
-                    base_url=self.config.url,
-                    requested_fields=fields_param,
+                    response, base_url=self.config.url, requested_fields=fields_param
                 )
 
                 # Return the full search result object

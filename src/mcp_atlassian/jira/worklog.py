@@ -128,8 +128,7 @@ class WorklogMixin(JiraClient):
                 remaining_estimate_updated = True
 
             # Step 4: Add the worklog with remaining estimate adjustment
-            base_url = self.jira.resource_url("issue")
-            url = f"{base_url}/{issue_key}/worklog"
+            url = f"/rest/api/3/issue/{issue_key}/worklog"
 
             result = self.jira.post(url, data=worklog_data, params=params)
             if not isinstance(result, dict):
